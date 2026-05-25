@@ -56,14 +56,30 @@ button{
   box-shadow:0 0 30px #000;
 }
 
-.popup-success{
+#popup.popup-success{
   border:3px solid #00ff99;
   color:#00ff99;
 }
 
-.popup-error{
+#popup.popup-error{
   border:3px solid #ff4444;
   color:#ff4444;
+}
+  #popup.show{
+  animation:pop 0.2s ease;
+}
+
+@keyframes pop{
+
+  from{
+    transform:translate(-50%,-50%) scale(0.7);
+    opacity:0;
+  }
+
+  to{
+    transform:translate(-50%,-50%) scale(1);
+    opacity:1;
+  }
 }
 </style>
 </head>
@@ -71,7 +87,9 @@ button{
 <body>
 
 <h2>📷 QR Điểm Danh PRO</h2>
-
+<button onclick="enableSound()">
+🔊 Bật âm thanh
+</button>
 <button onclick="switchCamera()">🔄 Camera</button>
 <button onclick="toggleFlash()">🔦 Flash</button>
 
@@ -105,7 +123,40 @@ let lastCode = "";
 let lastTime = 0;
 
 let flashOn = false;
+let soundEnabled = false;
+  function enableSound(){
 
+  successAudio.volume = 1;
+  errorAudio.volume = 1;
+
+  successAudio.play()
+  .then(()=>{
+
+    successAudio.pause();
+
+    successAudio.currentTime = 0;
+
+    soundEnabled = true;
+
+  });
+
+  errorAudio.play()
+  .then(()=>{
+
+    errorAudio.pause();
+
+    errorAudio.currentTime = 0;
+
+  });
+
+  // test rung
+  if(navigator.vibrate){
+
+    navigator.vibrate([200,100,200]);
+  }
+
+  alert("✅ Đã bật âm thanh & rung");
+}
 // ================== OFFLINE QUEUE ==================
 let offlineQueue = JSON.parse(localStorage.getItem("queue") || "[]");
 
@@ -116,6 +167,8 @@ function saveQueue(){
 // ================== BEEP + VIBRATE ==================
 function beep(ok=true){
 
+  if(!soundEnabled) return;
+
   const audio =
     ok
     ? successAudio
@@ -125,12 +178,11 @@ function beep(ok=true){
 
   audio.currentTime = 0;
 
-  const p = audio.play();
+  audio.play()
+  .catch(err=>{
 
-  if(p !== undefined){
-
-    p.catch(()=>{});
-  }
+    console.log(err);
+  });
 }
 
 function vibrate(ok=true){
@@ -139,11 +191,11 @@ function vibrate(ok=true){
 
   if(ok){
 
-    navigator.vibrate([200,80,200]);
+    navigator.vibrate([250,100,250]);
 
   }else{
 
-    navigator.vibrate([100,80,100]);
+    navigator.vibrate([100,50,100]);
   }
 }
   
@@ -152,11 +204,15 @@ function showPopup(html, ok=true){
   popup.style.display = "block";
 
   popup.className =
-    ok
-    ? "popup-success"
-    : "popup-error";
+  ok
+  ? "popup-success"
+  : "popup-error";
 
-  popup.id = "popup";
+popup.classList.remove("show");
+
+void popup.offsetWidth;
+
+popup.classList.add("show");
 
   popup.innerHTML = html;
 }
@@ -179,26 +235,66 @@ function isDuplicate(code){
 // ================== START CAMERA ==================
 async function startCamera(id){
 
-  try{
-    if(qr.isScanning){
-      await qr.stop();
-      await qr.clear();
-    }
+try{
 
-    await qr.start(
-      id,
-      {
-        fps: 12,        // ⚡ nhanh hơn
-        qrbox: 260
-      },
-      onScan
-    );
+```
+if(qr.isScanning){
 
-  }catch(e){
-    console.log(e);
-    result.innerHTML = "❌ Camera lỗi";
-  }
+  await qr.stop();
+
+  await qr.clear();
 }
+
+await qr.start(
+
+  id,
+
+  {
+
+    fps:20,
+
+    qrbox:{
+      width:300,
+      height:180
+    },
+
+    aspectRatio:1.777778,
+
+    videoConstraints:{
+      facingMode:"environment"
+    },
+
+    formatsToSupport:[
+
+      Html5QrcodeSupportedFormats.QR_CODE,
+
+      Html5QrcodeSupportedFormats.CODE_128,
+
+      Html5QrcodeSupportedFormats.EAN_13,
+
+      Html5QrcodeSupportedFormats.EAN_8,
+
+      Html5QrcodeSupportedFormats.UPC_A,
+
+      Html5QrcodeSupportedFormats.UPC_E
+    ]
+  },
+
+  onScan
+);
+```
+
+}catch(e){
+
+```
+console.log(e);
+
+result.innerHTML = "❌ Camera lỗi";
+```
+
+}
+}
+
 
 // ================== SCAN ==================
 function onScan(text){
@@ -216,7 +312,7 @@ function onScan(text){
 // ================== SEND (ONLINE/OFFLINE) ==================
 function sendData(text){
 
-  fetch("https://script.google.com/macros/s/AKfycbyo9D1Wkg_cU0L4SFMcFnU3Zu1oXkyMJnFc7xRkGflq6TlQMdv0mh3JslKoDm2UvBKW/exec?mtn=" + encodeURIComponent(text))// thay URL gsheet sau khi deploy web app (2 chỗ (1))
+  fetch("https://script.google.com/macros/s/AKfycbyo9D1Wkg_cU0L4SFMcFnU3Zu1oXkyMJnFc7xRkGflq6TlQMdv0mh3JslKoDm2UvBKW/exec?mtn=" + encodeURIComponent(text)) // thay URL gsheet sau khi deploy web app (2 chỗ (1))
   .then(r => r.json())
   .then(res => {
 
@@ -370,7 +466,10 @@ function switchCamera(){
 async function toggleFlash(){
 
   try{
-    const track = qr.getRunningTrack?.();
+    const track =
+  qr.getRunningTrack
+  ? qr.getRunningTrack()
+  : null;
 
     if(!track){
       alert("Chưa mở camera");
